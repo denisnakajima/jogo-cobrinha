@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Jogo da Cobrinha — Grid &amp; Histórico (Node.js)</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-icon" aria-hidden="true">🐍</span>
+        <div>
+          <h1>Jogo da Cobrinha</h1>
+          <p class="subtitle">Arena em Grid Configurável &amp; Histórico Persistente em Node.js</p>
+        </div>
+      </div>
+
+      <div class="player-bar">
+        <label for="player-input">Jogador</label>
+        <input
+          id="player-input"
+          type="text"
+          maxlength="18"
+          placeholder="Seu nome..."
+          value="Jogador 1"
+          autocomplete="off"
+        />
+        <button id="sound-btn" class="icon-btn" type="button" title="Alternar efeitos sonoros">
+          🔊 Som
+        </button>
+      </div>
+    </header>
+
+    <main class="main-layout">
+      <!-- Coluna Esquerda: Jogo e Grid -->
+      <section class="game-column" aria-label="Tabuleiro do Jogo">
+        <div class="hud-cards">
+          <div class="hud-card highlight">
+            <span class="hud-label">Pontuação</span>
+            <strong id="hud-score" class="hud-value">0</strong>
+          </div>
+          <div class="hud-card">
+            <span class="hud-label">Recorde</span>
+            <strong id="hud-best" class="hud-value">0</strong>
+          </div>
+          <div class="hud-card">
+            <span class="hud-label">Tamanho / Grid</span>
+            <strong id="hud-length" class="hud-value">3 / 400</strong>
+          </div>
+          <div class="hud-card">
+            <span class="hud-label">Posição (X, Y)</span>
+            <strong id="hud-coords" class="hud-value">(10, 10)</strong>
+          </div>
+          <div class="hud-card">
+            <span class="hud-label">Tempo</span>
+            <strong id="hud-time" class="hud-value">00:00</strong>
+          </div>
+        </div>
+
+        <!-- Barra de configurações do Grid -->
+        <div class="controls-toolbar">
+          <div class="control-group">
+            <label for="grid-size-select">Grid</label>
+            <select id="grid-size-select">
+              <option value="15">15 × 15 (Compacto)</option>
+              <option value="20" selected>20 × 20 (Clássico)</option>
+              <option value="25">25 × 25 (Amplo)</option>
+            </select>
+          </div>
+
+          <div class="control-group">
+            <label for="speed-select">Velocidade</label>
+            <select id="speed-select">
+              <option value="slow">Lento (1x)</option>
+              <option value="normal" selected>Normal (1x)</option>
+              <option value="fast">Rápido (1.5x)</option>
+              <option value="insane">Insano (2x)</option>
+            </select>
+          </div>
+
+          <div class="control-group">
+            <label for="wall-mode-select">Bordas</label>
+            <select id="wall-mode-select">
+              <option value="solid" selected>Paredes Sólidas</option>
+              <option value="wrap">Atravessar Bordas</option>
+            </select>
+          </div>
+
+          <label class="checkbox-pill" title="Mostrar/ocultar linhas divisórias das células do Grid">
+            <input id="toggle-grid-lines" type="checkbox" checked />
+            <span>Linhas do Grid</span>
+          </label>
+
+          <label class="checkbox-pill" title="Mostrar índices das coordenadas X e Y nas bordas">
+            <input id="toggle-rulers" type="checkbox" checked />
+            <span>Eixos X/Y</span>
+          </label>
+        </div>
+
+        <!-- Barra de fruta bônus temporária -->
+        <div id="bonus-banner" class="bonus-banner hidden" aria-live="polite">
+          <span>⭐ Fruta Dourada ativa no Grid! (+30 pts base)</span>
+          <div class="bonus-progress-track">
+            <div id="bonus-progress-fill" class="bonus-progress-fill"></div>
+          </div>
+        </div>
+
+        <!-- Moldura do Grid com eixos X/Y -->
+        <div class="board-stage">
+          <div id="axis-top" class="axis-top" aria-hidden="true"></div>
+          <div class="board-middle">
+            <div id="axis-left" class="axis-left" aria-hidden="true"></div>
+
+            <div class="board-wrapper">
+              <div
+                id="snake-grid"
+                class="snake-grid show-lines"
+                role="grid"
+                aria-label="Grid do Jogo da Cobrinha"
+              ></div>
+
+              <!-- Overlay de Início / Pausa / Fim de Jogo -->
+              <div id="board-overlay" class="board-overlay">
+                <div class="overlay-card">
+                  <div id="overlay-badge" class="overlay-badge hidden">NOVO RECORDE!</div>
+                  <h2 id="overlay-title">Pronto para Jogar?</h2>
+                  <p id="overlay-subtitle">
+                    Use as <strong>Setas</strong> ou <strong>WASD</strong> para guiar a cobrinha pelo Grid.
+                  </p>
+                  <div id="overlay-summary" class="overlay-summary hidden"></div>
+                  <div class="overlay-actions">
+                    <button id="start-btn" class="primary-btn" type="button">
+                      ▶ Iniciar Partida
+                    </button>
+                    <button id="pause-btn" class="secondary-btn hidden" type="button">
+                      ⏸ Continuar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="board-footer">
+            <div class="action-buttons">
+              <button id="btn-play-pause" class="secondary-btn small" type="button">
+                ▶ Iniciar / Pausar (Espaço)
+              </button>
+              <button id="btn-restart" class="secondary-btn small" type="button">
+                ↻ Reiniciar (R)
+              </button>
+            </div>
+            <span id="cell-inspector" class="cell-inspector">
+              Passe o mouse no Grid para inspecionar (x, y)
+            </span>
+          </div>
+        </div>
+
+        <!-- Controles direcionais (Touch / Mouse) -->
+        <div class="dpad" aria-label="Controles direcionais">
+          <button class="dpad-btn up" data-dir="UP" type="button" aria-label="Mover para cima">▲</button>
+          <div class="dpad-middle">
+            <button class="dpad-btn left" data-dir="LEFT" type="button" aria-label="Mover para esquerda">◀</button>
+            <button class="dpad-btn down" data-dir="DOWN" type="button" aria-label="Mover para baixo">▼</button>
+            <button class="dpad-btn right" data-dir="RIGHT" type="button" aria-label="Mover para direita">▶</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Coluna Direita: Histórico e Ranking -->
+      <aside class="history-column" aria-label="Histórico de Partidas e Estatísticas">
+        <div class="panel-header">
+          <div>
+            <h2>📜 Histórico &amp; Estatísticas</h2>
+            <p class="panel-caption">Salvo automaticamente no servidor Node.js</p>
+          </div>
+          <button id="clear-history-btn" class="danger-btn" type="button" title="Apagar todo o histórico">
+            Limpar
+          </button>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-box">
+            <span class="stat-label">Partidas</span>
+            <strong id="stat-total">0</strong>
+          </div>
+          <div class="stat-box">
+            <span class="stat-label">Média Pts</span>
+            <strong id="stat-avg">0</strong>
+          </div>
+          <div class="stat-box">
+            <span class="stat-label">Maior Cobra</span>
+            <strong id="stat-maxlen">0</strong>
+          </div>
+          <div class="stat-box">
+            <span class="stat-label">Maçãs 🍎</span>
+            <strong id="stat-apples">0</strong>
+          </div>
+        </div>
+
+        <div class="history-controls">
+          <div class="tabs" role="tablist">
+            <button id="tab-history" class="tab-btn active" role="tab" aria-selected="true" type="button">
+              Histórico Recente
+            </button>
+            <button id="tab-leaderboard" class="tab-btn" role="tab" aria-selected="false" type="button">
+              🏆 Top 10
+            </button>
+          </div>
+
+          <select id="history-grid-filter" title="Filtrar histórico por tamanho do Grid">
+            <option value="">Todos os Grids</option>
+            <option value="15">Grid 15×15</option>
+            <option value="20">Grid 20×20</option>
+            <option value="25">Grid 25×25</option>
+          </select>
+        </div>
+
+        <div id="history-list" class="history-list" aria-live="polite">
+          <div class="empty-state">Carregando histórico...</div>
+        </div>
+
+        <div id="leaderboard-list" class="history-list hidden" aria-live="polite"></div>
+      </aside>
+    </main>
+  </div>
+
+  <script src="/snake-engine.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>
